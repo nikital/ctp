@@ -7,20 +7,43 @@ import shutil
 import sys
 import tempfile
 import urllib
+import contextlib
 
 DISK_URL = 'https://stable.release.core-os.net/amd64-usr/current/coreos_production_virtualbox_image.vmdk.bz2'
 PORT_BASE = 11100
 
-def aquire_vm ():
+def aquire_vm (disk=None):
     '''Returns a fresh, ready to use, powered on VM'''
     ctp0 = VM ('ctp-0')
     if ctp0.is_powered_on ():
         raise errors.CTPError ("No VM available. Currently only one VM is supported, and it's in use")
+    if disk is not None:
+        ctp0.attach_disk (disk)
     ctp0.poweron ()
     return ctp0
 
-def release_vm (vm):
-    vm.poweroff ()
+def release_vm (machine):
+    machine.poweroff ()
+
+@contextlib.contextmanager
+def vm_context (disk=None):
+    machine = aquire_vm (disk)
+    yield machine
+    release_vm (machine)
+
+def create_medium (path, size):
+    if os.path.exists (path):
+        raise errors.CTPError ('VDI already exists at {}'.format (path))
+    # This is unchecked because VBox may err even if the creation was
+    # successful but it couldn't register the volume because a
+    # different volume was registered for the same path
+    _vbox_manage_unchecked (
+        'createmedium', 'disk',
+        '--filename', path,
+        '--size', size,
+    )
+    if not os.path.exists (path):
+        raise errors.CTPError ('Failed to create VDI at {}'.format (path))
 
 def _print_progress (blocks, block_size, total_size):
     percent = 1.0 * blocks * block_size / total_size
@@ -92,9 +115,22 @@ class VM (object):
         self.ssh = PORT_BASE + 0 + 3 * utils.id_from_vm_name (name)
         self.nfs = PORT_BASE + 1 + 3 * utils.id_from_vm_name (name)
         self.nfs_mount = PORT_BASE + 2 + 3 * utils.id_from_vm_name (name)
+        self.disk = None
 
         self._create ()
         _get_cloudconfig () # Make sure there is a valid cloudconfig
+
+    def attach_disk (self, disk):
+        self._detach_disk ()
+        _vbox_manage_unchecked ('closemedium', disk)
+        _vbox_manage (
+            'storageattach', self.name,
+            '--storagectl', 'SCSI',
+            '--port', 2,
+            '--type', 'hdd',
+            '--medium', disk,
+        )
+        self.disk = disk
 
     def poweron (self):
         sys.stdout.write ('Booting VM..')
@@ -110,7 +146,9 @@ class VM (object):
         print ' Done'
 
     def poweroff (self):
+        utils.ssh_checked (self, 'sync')
         _vbox_manage_unchecked ('controlvm', self.name, 'poweroff')
+        self._detach_disk ()
 
     def is_powered_on (self):
         return 0 == utils.ssh (self, 'echo', 1)[0]
@@ -136,7 +174,7 @@ class VM (object):
             '--storagectl', 'SCSI',
             '--port', 0,
             '--type', 'hdd',
-            '--medium', self._get_disk (),
+            '--medium', self._get_coreos (),
         )
         _vbox_manage (
             'storageattach', self.name,
@@ -154,7 +192,7 @@ class VM (object):
             '--natpf1', 'nfsmount,tcp,127.0.0.1,{},,11111'.format (self.nfs_mount),
         )
 
-    def _get_disk (self):
+    def _get_coreos (self):
         target = config.user_path ('vm/{}/coreos.vmdk'.format (self.name))
         if os.path.exists (target):
             return target
@@ -166,6 +204,18 @@ class VM (object):
         utils.run_checked ('bunzip2', target_bz2)
 
         return target
+
+    def _detach_disk (self):
+        _vbox_manage_unchecked (
+            'storageattach', self.name,
+            '--storagectl', 'SCSI',
+            '--port', 2,
+            '--type', 'hdd',
+            '--medium', None,
+        )
+        if self.disk is not None:
+            _vbox_manage_unchecked ('closemedium', self.disk)
+            self.disk = None
 
     def __repr__ (self):
         return '<VM name={} ssh={}>'.format (self.name, self.ssh)
