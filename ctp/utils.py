@@ -1,3 +1,5 @@
+import config
+
 import os
 import subprocess
 
@@ -20,5 +22,22 @@ def run (*args):
 def run_checked (*args):
     retcode, output = run (*args)
     if retcode:
-        raise RuntimeError ('Error running "{}"'.format (''.join (args)))
+        raise RuntimeError ('Error running "{}"'.format (' '.join (map (str, args))))
+    return output
+
+def ssh (vm, *command):
+    return run (
+        'ssh', 'core@localhost',
+        '-p', str (vm.ssh),
+        '-i', config.get_ssh_private_key_file (),
+        '-o', 'StrictHostKeychecking=no',
+        '-o', 'UserKnownHostsFile=/dev/null',
+        '-o', 'ConnectTimeout=1',
+        '--', subprocess.list2cmdline (map (str, command))
+    )
+
+def ssh_checked (vm, *command):
+    retcode, output = ssh (vm, *command)
+    if retcode:
+        raise RuntimeError ('Error running "{}" on ssh'.format (' '.join (map (str, command))))
     return output

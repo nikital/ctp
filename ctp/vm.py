@@ -1,5 +1,6 @@
 import config
 import utils
+import errors
 
 import os
 import shutil
@@ -9,6 +10,17 @@ import urllib
 
 DISK_URL = 'https://stable.release.core-os.net/amd64-usr/current/coreos_production_virtualbox_image.vmdk.bz2'
 PORT_BASE = 11100
+
+def aquire_vm ():
+    '''Returns a fresh, ready to use, powered on VM'''
+    ctp0 = VM ('ctp-0')
+    if ctp0.is_powered_on ():
+        raise errors.CTPError ("No VM available. Currently only one VM is supported, and it's in use")
+    ctp0.poweron ()
+    return ctp0
+
+def release_vm (vm):
+    vm.poweroff ()
 
 def _print_progress (blocks, block_size, total_size):
     percent = 1.0 * blocks * block_size / total_size
@@ -77,12 +89,31 @@ class VM (object):
         super (VM, self).__init__ ()
 
         self.name = name
-        self.ssh_port = PORT_BASE + 0 + 3 * utils.id_from_vm_name (name)
-        self.nfs_port = PORT_BASE + 1 + 3 * utils.id_from_vm_name (name)
-        self.nfs_mount_port = PORT_BASE + 2 + 3 * utils.id_from_vm_name (name)
+        self.ssh = PORT_BASE + 0 + 3 * utils.id_from_vm_name (name)
+        self.nfs = PORT_BASE + 1 + 3 * utils.id_from_vm_name (name)
+        self.nfs_mount = PORT_BASE + 2 + 3 * utils.id_from_vm_name (name)
 
         self._create ()
         _get_cloudconfig () # Make sure there is a valid cloudconfig
+
+    def poweron (self):
+        sys.stdout.write ('Booting VM..')
+        sys.stdout.flush ()
+        _vbox_manage_unchecked ('controlvm', self.name, 'poweroff')
+        _vbox_manage ('startvm', self.name)
+
+        sys.stdout.write ('.')
+        sys.stdout.flush ()
+        while not self.is_powered_on ():
+            sys.stdout.write ('.')
+            sys.stdout.flush ()
+        print ' Done'
+
+    def poweroff (self):
+        _vbox_manage_unchecked ('controlvm', self.name, 'poweroff')
+
+    def is_powered_on (self):
+        return 0 == utils.ssh (self, 'echo', 1)[0]
 
     def _create (self):
         if 0 == _vbox_manage_unchecked ('showvminfo', self.name):
@@ -118,9 +149,9 @@ class VM (object):
             'modifyvm', self.name,
             '--memory', 512,
             '--nic1', 'nat',
-            '--natpf1', 'ssh,tcp,127.0.0.1,{},,22'.format (self.ssh_port),
-            '--natpf1', 'nfs,tcp,127.0.0.1,{},,2049'.format (self.nfs_port),
-            '--natpf1', 'nfsmount,tcp,127.0.0.1,{},,11111'.format (self.nfs_mount_port),
+            '--natpf1', 'ssh,tcp,127.0.0.1,{},,22'.format (self.ssh),
+            '--natpf1', 'nfs,tcp,127.0.0.1,{},,2049'.format (self.nfs),
+            '--natpf1', 'nfsmount,tcp,127.0.0.1,{},,11111'.format (self.nfs_mount),
         )
 
     def _get_disk (self):
@@ -136,3 +167,5 @@ class VM (object):
 
         return target
 
+    def __repr__ (self):
+        return '<VM name={} ssh={}>'.format (self.name, self.ssh)
