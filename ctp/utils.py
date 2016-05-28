@@ -3,9 +3,12 @@ import config
 import os
 import subprocess
 
+def ensure_dir (dirpath):
+    if not os.path.exists (dirpath):
+        os.makedirs (dirpath)
+
 def ensure_dir_for_file (filepath):
-    if not os.path.exists (os.path.dirname (filepath)):
-        os.makedirs (os.path.dirname (filepath))
+    ensure_dir (os.path.dirname (filepath))
 
 VM_PREFIX = 'ctp-'
 def id_from_vm_name (name):

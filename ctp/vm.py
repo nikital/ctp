@@ -1,6 +1,6 @@
 import config
 import utils
-import errors
+from errors import CTPError
 
 import os
 import shutil
@@ -16,7 +16,7 @@ def aquire_vm (disk=None):
     '''Returns a fresh, ready to use, powered on VM'''
     ctp0 = VM ('ctp-0')
     if ctp0.is_powered_on ():
-        raise errors.CTPError ("No VM available. Currently only one VM is supported, and it's in use")
+        raise CTPError ("No VM available. Currently only one VM is supported, and it's in use")
     if disk is not None:
         ctp0.attach_disk (disk)
     ctp0.poweron ()
@@ -33,7 +33,7 @@ def vm_context (disk=None):
 
 def create_medium (path, size):
     if os.path.exists (path):
-        raise errors.CTPError ('VDI already exists at {}'.format (path))
+        raise CTPError ('VDI already exists at {}'.format (path))
     # This is unchecked because VBox may err even if the creation was
     # successful but it couldn't register the volume because a
     # different volume was registered for the same path
@@ -43,7 +43,7 @@ def create_medium (path, size):
         '--size', size,
     )
     if not os.path.exists (path):
-        raise errors.CTPError ('Failed to create VDI at {}'.format (path))
+        raise CTPError ('Failed to create VDI at {}'.format (path))
 
 def _print_progress (blocks, block_size, total_size):
     percent = 1.0 * blocks * block_size / total_size

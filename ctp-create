@@ -3,4 +3,4 @@
 import ctp
 import sys
 
-ctp.mount_main (sys.argv[1:])
+ctp.create_main (sys.argv[1:])
