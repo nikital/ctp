@@ -22,6 +22,14 @@ def aquire_vm (disk=None):
     ctp0.poweron ()
     return ctp0
 
+def attach_vm (name):
+    '''Returns an already running VM, by name.'''
+    assert name == 'ctp-0'
+    ctp0 = VM ('ctp-0')
+    if not ctp0.is_powered_on ():
+        raise CTPError ('The VM is not running')
+    return ctp0
+
 def release_vm (machine):
     machine.poweroff ()
 
