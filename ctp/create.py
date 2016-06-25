@@ -1,5 +1,6 @@
 import utils
 import vm
+import config
 
 def create (path, size, password):
     with config.mount_context (path):

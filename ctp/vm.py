@@ -8,27 +8,34 @@ import sys
 import tempfile
 import urllib
 import contextlib
+import itertools
+import time
 
 DISK_URL = 'https://stable.release.core-os.net/amd64-usr/current/coreos_production_virtualbox_image.vmdk.bz2'
 PORT_BASE = 11100
 
 def aquire_vm (disk=None):
     '''Returns a fresh, ready to use, powered on VM'''
-    ctp0 = VM ('ctp-0')
-    if ctp0.is_powered_on ():
-        raise CTPError ("No VM available. Currently only one VM is supported, and it's in use")
+
+    # Find unused VM
+    powered_on = list (i.split('"')[1] for i in _vbox_manage ('list', 'runningvms').splitlines ())
+    for vm_index in itertools.count ():
+        vm_name = 'ctp-{}'.format (vm_index)
+        if vm_name not in powered_on:
+            break
+
+    machine = VM (vm_name)
     if disk is not None:
-        ctp0.attach_disk (disk)
-    ctp0.poweron ()
-    return ctp0
+        machine.attach_disk (disk)
+    machine.poweron ()
+    return machine
 
 def attach_vm (name):
     '''Returns an already running VM, by name.'''
-    assert name == 'ctp-0'
-    ctp0 = VM ('ctp-0')
-    if not ctp0.is_powered_on ():
+    machine = VM (name)
+    if not machine.is_powered_on ():
         raise CTPError ('The VM is not running')
-    return ctp0
+    return machine
 
 def release_vm (machine):
     machine.poweroff ()
@@ -58,18 +65,23 @@ def _print_progress (blocks, block_size, total_size):
     sys.stdout.write ('\r{:3.0f}% [{:50}] '.format (percent * 100, int (50 * percent) * '='))
     sys.stdout.flush ()
 
-def _get_compressed_disk ():
-    target = config.user_path ('vm/disk/coreos.vmdk.bz2')
+def _get_coreos_disk ():
+    target = config.user_path ('vm/disk/coreos.vmdk')
+    target_bz2 = target + '.bz2'
     if os.path.exists (target):
         return target
 
-    print 'Downloading CoreOS disk'
     utils.ensure_dir_for_file (target)
+
+    print 'Downloading CoreOS disk'
     sys.stdout.write ('Initializing connection...')
     sys.stdout.flush ()
     filename, headers = urllib.urlretrieve (DISK_URL, reporthook=_print_progress)
+    shutil.move (filename, target_bz2)
+
+    print 'Decompressing CoreOS disk...'
+    utils.run_checked ('bunzip2', target_bz2)
     print 'Done.'
-    shutil.move (filename, target)
 
     return target
 
@@ -151,6 +163,7 @@ class VM (object):
         while not self.is_powered_on ():
             sys.stdout.write ('.')
             sys.stdout.flush ()
+            time.sleep (1)
         print ' Done'
 
     def poweroff (self):
@@ -205,11 +218,8 @@ class VM (object):
         if os.path.exists (target):
             return target
 
-        target_bz2 = target + '.bz2'
-        utils.ensure_dir_for_file (target_bz2)
-        shutil.copy (_get_compressed_disk (), target_bz2)
-        print 'Decompressing CoreOS disk'
-        utils.run_checked ('bunzip2', target_bz2)
+        utils.ensure_dir_for_file (target)
+        shutil.copy (_get_coreos_disk (), target)
 
         return target
 
