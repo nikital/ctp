@@ -6,19 +6,12 @@ It can't do advanced operations (change password, resize disk...). For
 that you'll need to use ctp-debug, which will SSH into a Linux with
 your disk.
 
-** Multiple VMs
-
-There are some facilities in place to support multiple concurrent VMs.
-Some of the code behaves like there are multiple VMs and some just
-ignores it. This is OK, this is not sloppy design, it will just be
-properly extended when the time comes.
-
 * Features
 
 - [X] Create disk given size
 - [X] Mount disk
 - [X] Unmount disk
-- [ ] Mount multiple disks
+- [X] Mount multiple disks
 - [ ] Change password
 - [ ] Change size
 - [ ] Handle strange state
