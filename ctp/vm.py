@@ -30,11 +30,12 @@ def aquire_vm (disk=None):
     machine.poweron ()
     return machine
 
-def attach_vm (name):
+def attach_vm (name, disk=None):
     '''Returns an already running VM, by name.'''
     machine = VM (name)
     if not machine.is_powered_on ():
         raise CTPError ('The VM is not running')
+    machine.disk = disk
     return machine
 
 def release_vm (machine):
@@ -169,6 +170,7 @@ class VM (object):
     def poweroff (self):
         utils.ssh_checked (self, 'sync')
         _vbox_manage_unchecked ('controlvm', self.name, 'poweroff')
+        time.sleep (1) # Poweroff takes some time and may hold lock
         self._detach_disk ()
 
     def is_powered_on (self):
@@ -232,6 +234,7 @@ class VM (object):
             '--medium', None,
         )
         if self.disk is not None:
+            time.sleep (0.5) # Detach takes some time and may hold lock
             _vbox_manage_unchecked ('closemedium', self.disk)
             self.disk = None
 

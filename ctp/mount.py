@@ -51,7 +51,8 @@ def mount (path, mount_point, password, password_callback=None):
 
 def unmount (path):
     vm_name, mount_point = config.get_mount (path)
-    m = vm.attach_vm (vm_name)
+    disk = path + '/crypt.vdi'
+    m = vm.attach_vm (vm_name, disk)
 
     utils.run_checked ('umount', mount_point)
     config.remove_mount (path)

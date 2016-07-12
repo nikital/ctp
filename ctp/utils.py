@@ -18,9 +18,9 @@ def id_from_vm_name (name):
 
 def run (*args):
     proc = subprocess.Popen (args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    output, _ = proc.communicate ()
+    stdout, stderr = proc.communicate ()
     retcode = proc.poll ()
-    return retcode, output
+    return retcode, stdout
 
 def run_checked (*args):
     retcode, output = run (*args)
