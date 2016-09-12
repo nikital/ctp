@@ -1,17 +1,20 @@
-import vm
-import utils
-import config
-from errors import CTPError
+from . import vm
+from . import utils
+from . import config
+from .errors import CTPError
 
+import base64
 import sys
 
 # TODO(nikita) m is a shitty name
 def _open_luks (m, password, password_callback):
     open_successfull = False
+    password = base64.b64encode (password.encode ()).decode ()
+
     while not open_successfull:
         code, output = utils.ssh (
             m,
-            'echo', password.encode ('base64').strip (),
+            'echo', password,
             '|', 'base64', '-d',
             '|', 'sudo', 'cryptsetup', '-q', 'luksOpen', '/dev/sdb', 'sdb',
         )
@@ -22,7 +25,7 @@ def _open_luks (m, password, password_callback):
             if password_callback is None:
                 raise CTPError ('Bad password')
             else:
-                print >>sys.stderr, 'Bad password. Please try again.'
+                print ('Bad password. Please try again.', file=sys.stderr)
                 password = password_callback ()
         else:
             raise CTPError ('luksOpen failed with code {}'.format (code))
@@ -64,5 +67,5 @@ def unmount (path):
     vm.release_vm (m)
 
 def list_mounts ():
-    for mount, (vm, mount_point) in config.get_all_mounts ().iteritems ():
-        print '{} at {} via {}'.format (mount, mount_point, vm)
+    for mount, (vm, mount_point) in config.get_all_mounts ().items ():
+        print ('{} at {} via {}'.format (mount, mount_point, vm))

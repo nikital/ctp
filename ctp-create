@@ -1,6 +1,0 @@
-#!python
-
-import ctp
-import sys
-
-ctp.create_main (sys.argv[1:])

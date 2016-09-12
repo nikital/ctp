@@ -1,6 +1,8 @@
-import utils
-import vm
-import config
+from . import utils
+from . import vm
+from . import config
+
+import base64
 
 def create (path, size, password):
     with config.mount_context (path):
@@ -8,7 +10,7 @@ def create (path, size, password):
         utils.ensure_dir_for_file (disk)
         vm.create_medium (disk, size)
 
-        password = password.encode ('base64').strip ()
+        password = base64.b64encode (password.encode ()).decode ()
 
         with vm.vm_context (disk) as m:
             utils.ssh_checked (

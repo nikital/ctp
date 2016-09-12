@@ -1,5 +1,5 @@
-import vm
-import config
+from . import vm
+from . import config
 
 import subprocess
 

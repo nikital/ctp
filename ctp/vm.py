@@ -1,12 +1,12 @@
-import config
-import utils
-from errors import CTPError
+from . import config
+from . import utils
+from .errors import CTPError
 
 import os
 import shutil
 import sys
 import tempfile
-import urllib
+import urllib.request
 import contextlib
 import itertools
 import time
@@ -14,11 +14,15 @@ import time
 DISK_URL = 'https://stable.release.core-os.net/amd64-usr/current/coreos_production_virtualbox_image.vmdk.bz2'
 PORT_BASE = 11100
 
+def get_powered_on_vms ():
+    return list (i.split('"')[1]
+                 for i in _vbox_manage ('list', 'runningvms').splitlines ())
+
 def aquire_vm (disk=None):
     '''Returns a fresh, ready to use, powered on VM'''
 
     # Find unused VM
-    powered_on = list (i.split('"')[1] for i in _vbox_manage ('list', 'runningvms').splitlines ())
+    powered_on = get_powered_on_vms ()
     for vm_index in itertools.count ():
         vm_name = 'ctp-{}'.format (vm_index)
         if vm_name not in powered_on:
@@ -33,7 +37,7 @@ def aquire_vm (disk=None):
 def attach_vm (name, disk=None):
     '''Returns an already running VM, by name.'''
     machine = VM (name)
-    if not machine.is_powered_on ():
+    if not machine.is_running ():
         raise CTPError ('The VM is not running')
     machine.disk = disk
     return machine
@@ -74,15 +78,15 @@ def _get_coreos_disk ():
 
     utils.ensure_dir_for_file (target)
 
-    print 'Downloading CoreOS disk'
+    print ('Downloading CoreOS disk')
     sys.stdout.write ('Initializing connection...')
     sys.stdout.flush ()
-    filename, headers = urllib.urlretrieve (DISK_URL, reporthook=_print_progress)
+    filename, headers = urllib.request.urlretrieve (DISK_URL, reporthook=_print_progress)
     shutil.move (filename, target_bz2)
 
-    print 'Decompressing CoreOS disk...'
+    print ('Decompressing CoreOS disk...')
     utils.run_checked ('bunzip2', target_bz2)
-    print 'Done.'
+    print ('Done.')
 
     return target
 
@@ -114,7 +118,7 @@ def _get_cloudconfig ():
         f.write ('        [Service]\n')
         f.write ('        Environment="RPCMOUNTDARGS=-p 11111"\n')
 
-    print 'Creating cloud-config'
+    print ('Creating cloud-config')
     utils.run_checked ('hdiutil', 'makehybrid', '-iso', '-joliet',
                  '-default-volume-name', 'config-2',
                  '-o', target,
@@ -161,11 +165,11 @@ class VM (object):
 
         sys.stdout.write ('.')
         sys.stdout.flush ()
-        while not self.is_powered_on ():
+        while not self.is_running ():
             sys.stdout.write ('.')
             sys.stdout.flush ()
             time.sleep (1)
-        print ' Done'
+        print (' Done')
 
     def poweroff (self):
         utils.ssh_checked (self, 'sync')
@@ -173,7 +177,7 @@ class VM (object):
         time.sleep (1) # Poweroff takes some time and may hold lock
         self._detach_disk ()
 
-    def is_powered_on (self):
+    def is_running (self):
         return 0 == utils.ssh (self, 'echo', 1)[0]
 
     def _create (self):

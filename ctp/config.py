@@ -1,5 +1,6 @@
-import utils
-import errors
+from . import utils
+from . import errors
+from . import vm
 
 import shelve
 import contextlib
